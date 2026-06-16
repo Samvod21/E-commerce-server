@@ -26,10 +26,12 @@ app.use('/uploads', express.static(uploadsDir));
 const authRoutes = require('./Routes/authRoutes');
 const productRoutes = require('./Routes/productRoutes');
 const cartRoutes = require('./Routes/cartRoutes');
+const orderRoutes = require('./Routes/orderRoutes');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/cart', cartRoutes);
+app.use('/api/orders', orderRoutes);
 
 const port = process.env.PORT || 5000;
 app.listen(port, () => {
