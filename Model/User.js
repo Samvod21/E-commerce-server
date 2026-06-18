@@ -19,6 +19,18 @@ const userSchema = new mongoose.Schema({
     lowercase: true,
     match: [/^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/, 'Please provide a valid email']
   },
+  companyName: {
+    type: String,
+    trim: true,
+    required: function () {
+      return this.role === 'seller';
+    }
+  },
+  role: {
+    type: String,
+    enum: ['buyer', 'seller'],
+    default: 'buyer'
+  },
   password: {
     type: String,
     required: [true, 'Password is required'],
@@ -38,11 +50,14 @@ const userSchema = new mongoose.Schema({
 // Hash password before saving
 userSchema.pre('save', async function (next) {
   if (!this.isModified('password')) {
-    next();
+    this.updatedAt = Date.now();
+    return next();
   }
 
+  this.updatedAt = Date.now();
   const salt = await bcrypt.genSalt(10);
   this.password = await bcrypt.hash(this.password, salt);
+  next();
 });
 
 // Method to compare passwords

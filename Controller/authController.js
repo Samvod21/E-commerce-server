@@ -13,13 +13,28 @@ const generateToken = (id) => {
 // @access  Public
 exports.signup = async (req, res) => {
   try {
-    const { firstName, lastName, email, password, confirmPassword } = req.body;
+    const { firstName, lastName, email, password, confirmPassword, role = 'buyer', companyName } = req.body;
 
     // Validate required fields
-    if (!firstName || !lastName || !email || !password || !confirmPassword) {
+    if (!firstName || !lastName || !email || !password || !confirmPassword || !role) {
       return res.status(400).json({
         success: false,
         message: 'Please provide all required fields'
+      });
+    }
+
+    if (!['buyer', 'seller'].includes(role)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid role specified'
+      });
+    }
+
+    // Seller must provide company name
+    if (role === 'seller' && !companyName) {
+      return res.status(400).json({
+        success: false,
+        message: 'Company name is required for seller accounts'
       });
     }
 
@@ -45,7 +60,9 @@ exports.signup = async (req, res) => {
       firstName,
       lastName,
       email,
-      password
+      password,
+      role,
+      companyName: role === 'seller' ? companyName : undefined
     });
 
     // Generate token
@@ -59,7 +76,9 @@ exports.signup = async (req, res) => {
         id: user._id,
         firstName: user.firstName,
         lastName: user.lastName,
-        email: user.email
+        email: user.email,
+        role: user.role,
+        companyName: user.companyName || null
       }
     });
   } catch (error) {
@@ -116,7 +135,9 @@ exports.login = async (req, res) => {
         id: user._id,
         firstName: user.firstName,
         lastName: user.lastName,
-        email: user.email
+        email: user.email,
+        role: user.role,
+        companyName: user.companyName || null
       }
     });
   } catch (error) {
