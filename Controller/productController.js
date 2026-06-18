@@ -1,6 +1,7 @@
 const Product = require('../Model/Product');
 
 const parseSizes = (sizes) => {
+  // Handle both 'sizes' and 'sizes[]' keys sent by FormData
   if (!sizes) return ['Standard'];
   if (Array.isArray(sizes)) return sizes.filter(Boolean);
   if (typeof sizes === 'string') {
@@ -9,6 +10,7 @@ const parseSizes = (sizes) => {
       if (Array.isArray(parsed)) {
         return parsed.filter(Boolean);
       }
+      return [parsed].filter(Boolean);
     } catch {
       return sizes.split(',').map(item => item.trim()).filter(Boolean);
     }
@@ -40,7 +42,7 @@ exports.getProductById = async (req, res) => {
 exports.createProduct = async (req, res) => {
   try {
     const { name, price, category, description, stock } = req.body;
-    const sizes = parseSizes(req.body.sizes);
+    const sizes = parseSizes(req.body['sizes[]'] || req.body.sizes);
     const image = req.file ? `/uploads/${req.file.filename}` : req.body.image;
 
     if (!name || !price || !category || !description || !stock || !image) {
@@ -66,7 +68,7 @@ exports.createProduct = async (req, res) => {
 exports.updateProduct = async (req, res) => {
   try {
     const { name, price, category, description, stock } = req.body;
-    const sizes = parseSizes(req.body.sizes);
+    const sizes = parseSizes(req.body['sizes[]'] || req.body.sizes);
     const updates = {};
     if (name) updates.name = name.trim();
     if (price) updates.price = Number(price);
