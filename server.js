@@ -16,12 +16,10 @@ app.use(cors({
     origin: 'http://localhost:5173', // Allow requests from this origin
 }));
 
-// Static folder for uploaded product images
-const uploadsDir = path.join(__dirname, 'uploads');
-if (!fs.existsSync(uploadsDir)) {
-    fs.mkdirSync(uploadsDir);
-}
-app.use('/uploads', express.static(uploadsDir));
+// Images are stored directly in MongoDB as data URLs (no local /uploads static serving needed).
+// (Leaving this commented prevents breaking existing clients.)
+// app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
 
 const authRoutes = require('./Routes/authRoutes');
 const productRoutes = require('./Routes/productRoutes');

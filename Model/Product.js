@@ -30,6 +30,7 @@ const productSchema = new mongoose.Schema({
     type: [String],
     default: ['Standard']
   },
+  // Store image as a data URL so we don't need a local /uploads folder
   image: {
     type: String,
     required: [true, 'Product image URL is required']

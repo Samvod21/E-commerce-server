@@ -43,7 +43,7 @@ exports.createProduct = async (req, res) => {
   try {
     const { name, price, category, description, stock } = req.body;
     const sizes = parseSizes(req.body['sizes[]'] || req.body.sizes);
-    const image = req.file ? `/uploads/${req.file.filename}` : req.body.image;
+    const image = req.file ? require('../Config/imageToDataUrl')(req.file.buffer, req.file.mimetype) : req.body.image;
 
     if (!name || !price || !category || !description || !stock || !image) {
       return res.status(400).json({ success: false, message: 'Missing required product fields' });
@@ -76,7 +76,7 @@ exports.updateProduct = async (req, res) => {
     if (description) updates.description = description.trim();
     if (stock) updates.stock = Number(stock);
     if (sizes.length) updates.sizes = sizes;
-    if (req.file) updates.image = `/uploads/${req.file.filename}`;
+    if (req.file) updates.image = require('../Config/imageToDataUrl')(req.file.buffer, req.file.mimetype);
     if (req.body.image && !req.file) updates.image = req.body.image;
     updates.updatedAt = Date.now();
 
