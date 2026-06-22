@@ -10,10 +10,15 @@ const {
 const upload = require('../Config/multerMemoryStorage');
 const router = express.Router();
 
+const { protect } = require('../Middleware/authMiddleware');
+
 router.get('/', getProducts);
 router.get('/:id', getProductById);
-router.post('/', upload.single('image'), createProduct);
-router.put('/:id', upload.single('image'), updateProduct);
-router.delete('/:id', deleteProduct);
+
+// Only authenticated users can create/update/delete products.
+router.post('/', protect, upload.single('image'), createProduct);
+router.put('/:id', protect, upload.single('image'), updateProduct);
+router.delete('/:id', protect, deleteProduct);
+
 
 module.exports = router;

@@ -30,6 +30,13 @@ const productSchema = new mongoose.Schema({
     type: [String],
     default: ['Standard']
   },
+  // Seller who owns this product
+  owner: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: [true, 'Product owner is required']
+  },
+
   // Store image as a data URL so we don't need a local /uploads folder
   image: {
     type: String,

@@ -50,6 +50,7 @@ exports.createProduct = async (req, res) => {
     }
 
     const product = await Product.create({
+      owner: req.user.id,
       name: name.trim(),
       price: Number(price),
       category: category.trim(),
@@ -64,6 +65,7 @@ exports.createProduct = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+
 
 exports.updateProduct = async (req, res) => {
   try {
@@ -80,7 +82,12 @@ exports.updateProduct = async (req, res) => {
     if (req.body.image && !req.file) updates.image = req.body.image;
     updates.updatedAt = Date.now();
 
-    const product = await Product.findByIdAndUpdate(req.params.id, updates, { new: true, runValidators: true });
+    const product = await Product.findOneAndUpdate(
+      { _id: req.params.id, owner: req.user.id },
+      updates,
+      { new: true, runValidators: true }
+    );
+
     if (!product) {
       return res.status(404).json({ success: false, message: 'Product not found' });
     }
@@ -91,9 +98,11 @@ exports.updateProduct = async (req, res) => {
   }
 };
 
+
 exports.deleteProduct = async (req, res) => {
   try {
-    const product = await Product.findByIdAndDelete(req.params.id);
+    const product = await Product.findOneAndDelete({ _id: req.params.id, owner: req.user.id });
+
     if (!product) {
       return res.status(404).json({ success: false, message: 'Product not found' });
     }
