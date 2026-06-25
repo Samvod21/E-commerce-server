@@ -31,6 +31,8 @@ exports.protect = async (req, res, next) => {
       });
     }
 
+    // Attach the full user to req so downstream middleware/controllers can read role/id
+    req.user = { id: user._id.toString(), role: user.role, email: user.email };
     next();
   } catch (error) {
     return res.status(401).json({
@@ -38,4 +40,15 @@ exports.protect = async (req, res, next) => {
       message: 'Not authorized to access this route'
     });
   }
+};
+
+// Restrict a route to sellers only
+exports.sellerOnly = (req, res, next) => {
+  if (!req.user || req.user.role !== 'seller') {
+    return res.status(403).json({
+      success: false,
+      message: 'Only sellers are allowed to perform this action'
+    });
+  }
+  next();
 };

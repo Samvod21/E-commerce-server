@@ -82,6 +82,15 @@ exports.updateProduct = async (req, res) => {
     if (req.body.image && !req.file) updates.image = req.body.image;
     updates.updatedAt = Date.now();
 
+    // Check existence first so we can distinguish 404 (not found) from 403 (not owner)
+    const existing = await Product.findById(req.params.id);
+    if (!existing) {
+      return res.status(404).json({ success: false, message: 'Product not found' });
+    }
+    if (String(existing.owner) !== String(req.user.id)) {
+      return res.status(403).json({ success: false, message: 'You can only edit products you own' });
+    }
+
     const product = await Product.findOneAndUpdate(
       { _id: req.params.id, owner: req.user.id },
       updates,
@@ -101,6 +110,15 @@ exports.updateProduct = async (req, res) => {
 
 exports.deleteProduct = async (req, res) => {
   try {
+    // Check existence first so we can distinguish 404 (not found) from 403 (not owner)
+    const existing = await Product.findById(req.params.id);
+    if (!existing) {
+      return res.status(404).json({ success: false, message: 'Product not found' });
+    }
+    if (String(existing.owner) !== String(req.user.id)) {
+      return res.status(403).json({ success: false, message: 'You can only delete products you own' });
+    }
+
     const product = await Product.findOneAndDelete({ _id: req.params.id, owner: req.user.id });
 
     if (!product) {
