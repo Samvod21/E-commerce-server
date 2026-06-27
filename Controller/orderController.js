@@ -49,6 +49,7 @@ exports.createOrder = async (req, res) => {
 
             orderItems.push({
                 product: product._id,
+                seller: product.owner,
                 name: product.name,
                 price: product.price,
                 quantity: item.quantity,
@@ -107,7 +108,18 @@ exports.createOrder = async (req, res) => {
 exports.getOrders = async (req, res) => {
     try {
         const userId = req.user.id;
-        const orders = await Order.find({ user: userId }).sort({ createdAt: -1 });
+        const scope = (req.query.scope || '').toString().toLowerCase();
+
+        // Sellers can ask for the orders that contain at least one of their products
+        // by passing ?scope=seller. Buyers (and anyone else) get the orders they placed.
+        let query;
+        if (scope === 'seller' && req.user.role === 'seller') {
+            query = { 'items.seller': userId };
+        } else {
+            query = { user: userId };
+        }
+
+        const orders = await Order.find(query).sort({ createdAt: -1 });
 
         res.status(200).json({
             success: true,
@@ -191,6 +203,68 @@ exports.cancelOrder = async (req, res) => {
         res.status(200).json({
             success: true,
             message: 'Order cancelled successfully',
+            order
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: error.message
+        });
+    }
+};
+
+// @desc    Update an order's status (seller can only update orders containing
+//          at least one of their products).
+// @route   PUT /api/orders/:id/status
+// @access  Private (sellers)
+exports.updateOrderStatus = async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const { status } = req.body;
+
+        const allowed = ['pending', 'processing', 'shipped', 'delivered', 'cancelled'];
+        if (!status || !allowed.includes(status)) {
+            return res.status(400).json({
+                success: false,
+                message: 'A valid status is required'
+            });
+        }
+
+        // Sellers must own at least one item in the order to change its status.
+        const order = await Order.findOne({ _id: req.params.id, 'items.seller': userId });
+
+        if (!order) {
+            return res.status(404).json({
+                success: false,
+                message: 'Order not found'
+            });
+        }
+
+        const previousStatus = order.status;
+        order.status = status;
+        order.updatedAt = Date.now();
+        await order.save();
+
+        // If the order is moving to cancelled from an active state, restock
+        // the items that belonged to this seller (don't touch other sellers' stock).
+        if (status === 'cancelled' && (previousStatus === 'pending' || previousStatus === 'processing')) {
+            const restoreStockUpdates = order.items
+                .filter((item) => String(item.seller) === String(userId))
+                .map((item) => ({
+                    updateOne: {
+                        filter: { _id: item.product },
+                        update: { $inc: { stock: item.quantity } }
+                    }
+                }));
+
+            if (restoreStockUpdates.length) {
+                await Product.bulkWrite(restoreStockUpdates);
+            }
+        }
+
+        res.status(200).json({
+            success: true,
+            message: 'Order status updated',
             order
         });
     } catch (error) {

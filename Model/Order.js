@@ -13,6 +13,13 @@ const orderSchema = new mongoose.Schema({
         ref: 'Product',
         required: true
       },
+      // Denormalized seller id for this line item so we can quickly filter
+      // orders visible to a given seller without re-populating the product.
+      seller: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: true
+      },
       name: String,
       price: Number,
       quantity: {
@@ -63,5 +70,8 @@ const orderSchema = new mongoose.Schema({
     default: Date.now
   }
 });
+
+// Index used by the seller-scoped orders query (GET /api/orders?scope=seller).
+orderSchema.index({ 'items.seller': 1, createdAt: -1 });
 
 module.exports = mongoose.model('Order', orderSchema);
