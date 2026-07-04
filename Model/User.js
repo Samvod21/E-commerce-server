@@ -26,6 +26,16 @@ const userSchema = new mongoose.Schema({
       return this.role === 'seller';
     }
   },
+  // add alongside companyName
+  payoutInfo: {
+    type: {
+    accountHolder: { type: String, trim: true },
+    bankName:      { type: String, trim: true },
+    last4:         { type: String }
+    },
+    _id: false,
+    required: function () { return this.role === 'seller'; }
+  },
   role: {
     type: String,
     enum: ['buyer', 'seller'],

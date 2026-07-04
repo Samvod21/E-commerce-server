@@ -27,8 +27,17 @@ const productSchema = new mongoose.Schema({
     default: 0
   },
   sizes: {
-    type: [String],
-    default: ['Standard']
+    type: [
+      {
+        size:  { type: String, required: true, trim: true },
+        price: { type: Number, required: true, min: 0 }
+      }
+    ],
+    _id: false,
+    validate: {
+      validator: (arr) => Array.isArray(arr) && arr.length > 0,
+      message: 'At least one size/price pair is required'
+    }
   },
   // Seller who owns this product
   owner: {

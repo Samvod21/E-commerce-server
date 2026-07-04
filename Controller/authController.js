@@ -13,7 +13,7 @@ const generateToken = (id) => {
 // @access  Public
 exports.signup = async (req, res) => {
   try {
-    const { firstName, lastName, email, password, confirmPassword, role = 'buyer', companyName } = req.body;
+    const { firstName, lastName, email, password, confirmPassword, role = 'buyer', companyName, payoutInfo } = req.body;
 
     // Validate required fields
     if (!firstName || !lastName || !email || !password || !confirmPassword || !role) {
@@ -55,6 +55,28 @@ exports.signup = async (req, res) => {
       });
     }
 
+    let safePayout;
+
+    if (role === 'seller') {
+      if (!payoutInfo || !payoutInfo.accountHolder || !payoutInfo.bankName || !payoutInfo.accountNumber) {
+        return res.status(400).json({
+          success: false,
+          message: 'Bank name, account holder name, and account number are required for seller accounts'
+       });
+      }
+      const rawAccount = String(payoutInfo.accountNumber).replace(/\D/g, '');
+  
+      if (rawAccount.length < 4) {
+        return res.status(400).json({ success: false, message: 'A valid account number is required' });
+      }
+
+      safePayout = {
+        accountHolder: payoutInfo.accountHolder.trim(),
+        bankName: payoutInfo.bankName.trim(),
+        last4: rawAccount.slice(-4)
+     };
+  }
+
     // Create new user
     const user = await User.create({
       firstName,
@@ -62,7 +84,8 @@ exports.signup = async (req, res) => {
       email,
       password,
       role,
-      companyName: role === 'seller' ? companyName : undefined
+      companyName: role === 'seller' ? companyName : undefined,
+      payoutInfo: role === 'seller' ? safePayout : undefined
     });
 
     // Generate token
@@ -78,7 +101,8 @@ exports.signup = async (req, res) => {
         lastName: user.lastName,
         email: user.email,
         role: user.role,
-        companyName: user.companyName || null
+        companyName: user.companyName || null,
+        payoutInfo: user.payoutInfo || null
       }
     });
   } catch (error) {
@@ -137,7 +161,8 @@ exports.login = async (req, res) => {
         lastName: user.lastName,
         email: user.email,
         role: user.role,
-        companyName: user.companyName || null
+        companyName: user.companyName || null,
+        payoutInfo: user.payoutInfo || null
       }
     });
   } catch (error) {

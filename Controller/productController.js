@@ -1,21 +1,20 @@
 const Product = require('../Model/Product');
 
-const parseSizes = (sizes) => {
-  // Handle both 'sizes' and 'sizes[]' keys sent by FormData
-  if (!sizes) return ['Standard'];
-  if (Array.isArray(sizes)) return sizes.filter(Boolean);
-  if (typeof sizes === 'string') {
+const parseSizes = (sizesRaw, fallbackPrice) => {
+  let parsed = [];
+  if (sizesRaw) {
     try {
-      const parsed = JSON.parse(sizes);
-      if (Array.isArray(parsed)) {
-        return parsed.filter(Boolean);
-      }
-      return [parsed].filter(Boolean);
+      parsed = typeof sizesRaw === 'string' ? JSON.parse(sizesRaw) : sizesRaw;
     } catch {
-      return sizes.split(',').map(item => item.trim()).filter(Boolean);
+      parsed = [];
     }
   }
-  return ['Standard'];
+  if (!Array.isArray(parsed) || parsed.length === 0) {
+    return [{ size: 'Standard', price: Number(fallbackPrice) }];
+  }
+  return parsed
+    .filter((s) => s && s.size && s.size.toString().trim() && !Number.isNaN(Number(s.price)))
+    .map((s) => ({ size: s.size.toString().trim(), price: Number(s.price) }));
 };
 
 exports.getProducts = async (req, res) => {
@@ -41,18 +40,23 @@ exports.getProductById = async (req, res) => {
 
 exports.createProduct = async (req, res) => {
   try {
-    const { name, price, category, description, stock } = req.body;
-    const sizes = parseSizes(req.body['sizes[]'] || req.body.sizes);
+    const { name, category, description, stock, price } = req.body;
+    const sizes = parseSizes(req.body.sizes, price);
     const image = req.file ? require('../Config/imageToDataUrl')(req.file.buffer, req.file.mimetype) : req.body.image;
 
-    if (!name || !price || !category || !description || !stock || !image) {
+    if (!name || !category || !description || !stock || !image || sizes.length === 0) {
       return res.status(400).json({ success: false, message: 'Missing required product fields' });
     }
+    if (sizes.some((s) => s.price <= 0)) {
+      return res.status(400).json({ success: false, message: 'Every size must have a price greater than 0' });
+    }
+
+    const basePrice = Math.min(...sizes.map((s) => s.price));
 
     const product = await Product.create({
       owner: req.user.id,
       name: name.trim(),
-      price: Number(price),
+      price: basePrice,
       category: category.trim(),
       description: description.trim(),
       stock: Number(stock),
@@ -69,15 +73,24 @@ exports.createProduct = async (req, res) => {
 
 exports.updateProduct = async (req, res) => {
   try {
-    const { name, price, category, description, stock } = req.body;
-    const sizes = parseSizes(req.body['sizes[]'] || req.body.sizes);
+    const { name, category, description, stock, price } = req.body;
+    const sizes = parseSizes(req.body.sizes, price);
     const updates = {};
     if (name) updates.name = name.trim();
     if (price) updates.price = Number(price);
     if (category) updates.category = category.trim();
     if (description) updates.description = description.trim();
     if (stock) updates.stock = Number(stock);
-    if (sizes.length) updates.sizes = sizes;
+    
+    if (sizes.length) {
+      if (sizes.some((s) => s.price <= 0)) {
+        return res.status(400).json({ success: false, message: 'Every size must have a price greater than 0' });
+      }
+
+      updates.sizes = sizes;
+      updates.price = Math.min(...sizes.map((s) => s.price));
+    }
+
     if (req.file) updates.image = require('../Config/imageToDataUrl')(req.file.buffer, req.file.mimetype);
     if (req.body.image && !req.file) updates.image = req.body.image;
     updates.updatedAt = Date.now();
