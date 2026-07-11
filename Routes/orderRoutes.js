@@ -6,7 +6,7 @@ const {
     cancelOrder,
     updateOrderStatus
 } = require('../Controller/orderController');
-const { protect } = require('../Middleware/authMiddleware');
+const { protect, sellerOnly } = require('../Middleware/authMiddleware');
 
 const router = express.Router();
 
@@ -16,6 +16,6 @@ router.post('/', createOrder);
 router.get('/', getOrders);
 router.get('/:id', getOrderById);
 router.put('/:id/cancel', cancelOrder);
-router.put('/:id/status', updateOrderStatus);
+router.put('/:id/status', sellerOnly, updateOrderStatus);
 
 module.exports = router;

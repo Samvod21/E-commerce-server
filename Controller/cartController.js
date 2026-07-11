@@ -65,25 +65,20 @@ exports.addToCart = async (req, res) => {
             });
         }
 
-        // Check stock availability
-        // addToCart — replace from "Check stock availability" through item creation
         if (product.stock < quantity) {
             return res.status(400).json({ success: false, message: 'Insufficient stock available' });
         }
 
-        const requestedSize = size || product.sizes[0]?.size || 'Standard';
-        const sizeEntry = product.sizes.find((s) => s.size === requestedSize);
-
-        if (!sizeEntry) {
-            return res.status(400).json({ success: false, message: `Size "${requestedSize}" is not available for this product` });
-        }   
-        const unitPrice = sizeEntry.price;
+        const requestedSize = size || product.sizes?.[0]?.size || 'Standard';
+        const sizeEntry = product.sizes?.find((s) => s.size === requestedSize);
+        const unitPrice = sizeEntry?.price ?? product.price;
 
         let cart = await Cart.findOne({ userId });
         if (!cart) cart = new Cart({ userId, items: [], totalPrice: 0, totalItems: 0 });
 
         const existingItem = cart.items.find(
-        item => item.productId.toString() === productId && item.size === requestedSize);
+            (item) => item.productId.toString() === productId && item.size === requestedSize
+        );
 
         if (existingItem) {
             const newQuantity = existingItem.quantity + quantity;
@@ -94,8 +89,20 @@ exports.addToCart = async (req, res) => {
             existingItem.quantity = newQuantity;
         } else {
             cart.items.push({ productId, quantity, price: unitPrice, size: requestedSize });
-    }
+        }
 
+        cart.totalItems = cart.items.reduce((sum, item) => sum + item.quantity, 0);
+        cart.totalPrice = cart.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+        cart.updatedAt = Date.now();
+
+        await cart.save();
+        await cart.populate('items.productId', 'name price image category description');
+
+        return res.status(200).json({
+            success: true,
+            message: 'Item added to cart',
+            cart
+        });
     } catch (error) {
         res.status(500).json({
             success: false,
