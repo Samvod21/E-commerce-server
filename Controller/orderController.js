@@ -68,8 +68,7 @@ exports.createOrder = async (req, res) => {
     if (!cart || !Array.isArray(cart.items) || cart.items.length === 0)
       return res.status(400).json({ success: false, message: 'Cart is empty.' });
 
-    const orderItems = [];
-    let total = 0;
+    const sellerGroups = new Map();
 
     for (const item of cart.items) {
       const product = item.productId;
@@ -78,37 +77,56 @@ exports.createOrder = async (req, res) => {
         return res.status(500).json({ success: false, message: `Product owner missing for ${product.name}` });
       }
       if (product.stock < item.quantity) return res.status(400).json({ success: false, message: `Insufficient stock for ${product.name}` });
+
+      const sellerKey = String(product.owner);
       const linePrice = item.price ?? product.price;
-      total += linePrice * item.quantity;
-      orderItems.push({
-        product: product._id, seller: product.owner,
-        name: product.name, price: linePrice, quantity: item.quantity,
-        image: product.image, category: product.category, description: product.description, stock: product.stock
-      });
+      const orderItem = {
+        product: product._id,
+        seller: product.owner,
+        name: product.name,
+        price: linePrice,
+        quantity: item.quantity,
+        image: product.image,
+        category: product.category,
+        description: product.description,
+        stock: product.stock
+      };
+
+      if (!sellerGroups.has(sellerKey)) {
+        sellerGroups.set(sellerKey, []);
+      }
+      sellerGroups.get(sellerKey).push(orderItem);
     }
 
-    const order = await Order.create({
-      user: userObjectId,
-      items: orderItems,
-      customerInfo: {
-        name: customerInfo.name.trim(),
-        email: customerInfo.email.trim(),
-        address: customerInfo.address.trim()
-      },
-      paymentInfo: safePayment,
-      total,
-      status: 'pending'
-    });
+    const createdOrders = [];
 
     try {
-      const updates = orderItems.map((oi) => ({
-        updateOne: {
-          filter: { _id: oi.product },
-          update: { $inc: { stock: -oi.quantity } }
+      for (const sellerItems of sellerGroups.values()) {
+        const total = sellerItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+        const order = await Order.create({
+          user: userObjectId,
+          items: sellerItems,
+          customerInfo: {
+            name: customerInfo.name.trim(),
+            email: customerInfo.email.trim(),
+            address: customerInfo.address.trim()
+          },
+          paymentInfo: safePayment,
+          total,
+          status: 'pending'
+        });
+
+        createdOrders.push(order);
+
+        const updates = sellerItems.map((oi) => ({
+          updateOne: {
+            filter: { _id: oi.product },
+            update: { $inc: { stock: -oi.quantity } }
+          }
+        }));
+        if (updates.length) {
+          await Product.bulkWrite(updates);
         }
-      }));
-      if (updates.length) {
-        await Product.bulkWrite(updates);
       }
 
       cart.items = [];
@@ -117,11 +135,13 @@ exports.createOrder = async (req, res) => {
       cart.updatedAt = Date.now();
       await cart.save();
     } catch (error) {
-      await Order.findByIdAndDelete(order._id);
+      if (createdOrders.length) {
+        await Order.deleteMany({ _id: { $in: createdOrders.map((order) => order._id) } });
+      }
       throw error;
     }
 
-    res.status(201).json({ success: true, message: 'Order placed successfully', order });
+    res.status(201).json({ success: true, message: 'Order placed successfully', orders: createdOrders, order: createdOrders[0] });
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 };
 
