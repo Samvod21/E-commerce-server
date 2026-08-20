@@ -1,4 +1,13 @@
 const Product = require('../Model/Product');
+const cache = require('../Config/cache');
+
+const productListKey = 'products:list';
+const productKey = (id) => `product:${id}`;
+
+const invalidateProductCache = async (id) => {
+  await cache.del(productListKey, productKey(id));
+  await cache.delByPattern('cart:*');
+};
 
 const parseSizes = (sizesRaw, fallbackPrice) => {
   let parsed = [];
@@ -19,8 +28,13 @@ const parseSizes = (sizesRaw, fallbackPrice) => {
 
 exports.getProducts = async (req, res) => {
   try {
+    const cachedProducts = await cache.get(productListKey);
+    if (cachedProducts) return res.status(200).json(cachedProducts);
+
     const products = await Product.find().sort({ createdAt: -1 });
-    res.status(200).json(products);
+    const responseProducts = products.map((product) => product.toObject());
+    await cache.set(productListKey, responseProducts);
+    res.status(200).json(responseProducts);
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -28,11 +42,16 @@ exports.getProducts = async (req, res) => {
 
 exports.getProductById = async (req, res) => {
   try {
+    const cachedProduct = await cache.get(productKey(req.params.id));
+    if (cachedProduct) return res.status(200).json(cachedProduct);
+
     const product = await Product.findById(req.params.id);
     if (!product) {
       return res.status(404).json({ success: false, message: 'Product not found' });
     }
-    res.status(200).json(product);
+    const responseProduct = product.toObject();
+    await cache.set(productKey(req.params.id), responseProduct);
+    res.status(200).json(responseProduct);
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -64,6 +83,7 @@ exports.createProduct = async (req, res) => {
       sizes
     });
 
+    await cache.del(productListKey);
     res.status(201).json(product);
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -81,7 +101,7 @@ exports.updateProduct = async (req, res) => {
     if (category) updates.category = category.trim();
     if (description) updates.description = description.trim();
     if (stock) updates.stock = Number(stock);
-    
+
     if (sizes.length) {
       if (sizes.some((s) => s.price <= 0)) {
         return res.status(400).json({ success: false, message: 'Every size must have a price greater than 0' });
@@ -114,6 +134,7 @@ exports.updateProduct = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Product not found' });
     }
 
+    await invalidateProductCache(req.params.id);
     res.status(200).json(product);
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -137,6 +158,7 @@ exports.deleteProduct = async (req, res) => {
     if (!product) {
       return res.status(404).json({ success: false, message: 'Product not found' });
     }
+    await invalidateProductCache(req.params.id);
     res.status(200).json({ success: true, message: 'Product deleted successfully' });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });

@@ -1,5 +1,8 @@
 const Cart = require('../Model/Cart');
 const Product = require('../Model/Product');
+const cache = require('../Config/cache');
+
+const cartKey = (userId) => `cart:${userId}`;
 
 // @desc    Get user's cart
 // @route   GET /api/cart
@@ -7,10 +10,13 @@ const Product = require('../Model/Product');
 exports.getCart = async (req, res) => {
     try {
         const userId = req.user.id;
+        const cachedCart = await cache.get(cartKey(userId));
+        if (cachedCart) return res.status(200).json(cachedCart);
+
         let cart = await Cart.findOne({ userId }).populate('items.productId', 'name price image category description');
 
         if (!cart) {
-            return res.status(200).json({
+            const response = {
                 success: true,
                 message: 'Cart is empty',
                 cart: {
@@ -18,13 +24,17 @@ exports.getCart = async (req, res) => {
                     totalPrice: 0,
                     totalItems: 0
                 }
-            });
+            };
+            await cache.set(cartKey(userId), response, 120);
+            return res.status(200).json(response);
         }
 
-        res.status(200).json({
+        const response = {
             success: true,
             cart
-        });
+        };
+        await cache.set(cartKey(userId), response, 120);
+        res.status(200).json(response);
     } catch (error) {
         res.status(500).json({
             success: false,
@@ -97,6 +107,7 @@ exports.addToCart = async (req, res) => {
 
         await cart.save();
         await cart.populate('items.productId', 'name price image category description');
+        await cache.del(cartKey(userId));
 
         return res.status(200).json({
             success: true,
@@ -179,6 +190,7 @@ exports.updateCartItem = async (req, res) => {
 
         await cart.save();
         await cart.populate('items.productId', 'name price image category description');
+        await cache.del(cartKey(userId));
 
         res.status(200).json({
             success: true,
@@ -238,6 +250,7 @@ exports.removeFromCart = async (req, res) => {
 
         await cart.save();
         await cart.populate('items.productId', 'name price image category description');
+        await cache.del(cartKey(userId));
 
         res.status(200).json({
             success: true,
@@ -273,6 +286,7 @@ exports.clearCart = async (req, res) => {
         cart.updatedAt = Date.now();
 
         await cart.save();
+        await cache.del(cartKey(userId));
 
         res.status(200).json({
             success: true,

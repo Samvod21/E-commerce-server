@@ -2,6 +2,12 @@ const mongoose = require('mongoose');
 const Order = require('../Model/Order');
 const Cart = require('../Model/Cart');
 const Product = require('../Model/Product');
+const cache = require('../Config/cache');
+
+const invalidateProductCaches = (productIds) => cache.del(
+  'products:list',
+  ...productIds.map((id) => `product:${id}`)
+);
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -126,6 +132,7 @@ exports.createOrder = async (req, res) => {
         }));
         if (updates.length) {
           await Product.bulkWrite(updates);
+          await invalidateProductCaches(sellerItems.map((item) => item.product));
         }
       }
 
@@ -134,6 +141,7 @@ exports.createOrder = async (req, res) => {
       cart.totalPrice = 0;
       cart.updatedAt = Date.now();
       await cart.save();
+      await cache.del(`cart:${userId}`);
     } catch (error) {
       if (createdOrders.length) {
         await Order.deleteMany({ _id: { $in: createdOrders.map((order) => order._id) } });
@@ -211,6 +219,7 @@ exports.cancelOrder = async (req, res) => {
     if (prev === 'pending' || prev === 'processing') {
       const r = order.items.map(i => ({ updateOne: { filter: { _id: i.product }, update: { $inc: { stock: i.quantity } } } }));
       if (r.length) await Product.bulkWrite(r);
+      await invalidateProductCaches(order.items.map((item) => item.product));
     }
     res.status(200).json({ success: true, message: 'Order cancelled', order });
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
@@ -238,6 +247,7 @@ exports.updateOrderStatus = async (req, res) => {
     if (status === 'cancelled' && (prev === 'pending' || prev === 'processing')) {
       const r = sellerItems.map(i => ({ updateOne: { filter: { _id: i.product }, update: { $inc: { stock: i.quantity } } } }));
       if (r.length) await Product.bulkWrite(r);
+      await invalidateProductCaches(sellerItems.map((item) => item.product));
     }
 
     const responseOrder = order.toObject ? order.toObject() : order;
