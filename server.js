@@ -7,8 +7,8 @@ const { connectCache } = require('./Config/cache');
 connectCache();
 const app = express();
 
-app.use(express.json());
-app.use(cors({ origin: process.env.FRONTEND_URL || 'http://localhost:5173' }));
+const allowedOrigins = [process.env.FRONTEND_URL, 'http://localhost:5173'].filter(Boolean);
+app.use(cors({ origin: allowedOrigins }));
 
 app.use(async (req, res, next) => {
     try { await connectDB(); next(); } catch (err) { next(err); }
