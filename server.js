@@ -7,7 +7,9 @@ const { connectCache } = require('./Config/cache');
 connectCache();
 const app = express();
 
-const allowedOrigins = [process.env.FRONTEND_URL, 'http://localhost:5173'].filter(Boolean);
+const clean = (u) => (u || '').trim().replace(/\/+$/, '');
+const allowedOrigins = [clean(process.env.FRONTEND_URL), 'http://localhost:5173'].filter(Boolean);
+
 app.use(cors({ origin: allowedOrigins }));
 
 app.use(async (req, res, next) => {
