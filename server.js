@@ -7,21 +7,20 @@ const { connectCache } = require('./Config/cache');
 connectCache();
 const app = express();
 
-const clean = (u) => (u || '').trim().replace(/\/+$/, '');
-
-const allowedOrigins = (process.env.FRONTEND_URL || '')
-  .split(',')
-  .map(clean)
-  .filter(Boolean)
-  .concat('http://localhost:5173');
-
-app.use(cors({
+const corsOptions = {
   origin: (origin, callback) => {
-    // allow non-browser tools (no origin) and listed origins
-    if (!origin || allowedOrigins.includes(clean(origin))) return callback(null, true);
+    if (!origin) return callback(null, true);
+    const o = clean(origin);
+    if (allowedOrigins.includes(o) || vercelPattern.test(o)) return callback(null, true);
     return callback(null, false);
   },
-}));
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  optionsSuccessStatus: 204,
+};
+
+app.use(cors(corsOptions));
+app.options('/{*splat}', cors(corsOptions));
 
 app.use(async (req, res, next) => {
     try { await connectDB(); next(); } catch (err) { next(err); }
