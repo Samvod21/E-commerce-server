@@ -8,9 +8,20 @@ connectCache();
 const app = express();
 
 const clean = (u) => (u || '').trim().replace(/\/+$/, '');
-const allowedOrigins = [clean(process.env.FRONTEND_URL), 'http://localhost:5173'].filter(Boolean);
 
-app.use(cors({ origin: allowedOrigins }));
+const allowedOrigins = (process.env.FRONTEND_URL || '')
+  .split(',')
+  .map(clean)
+  .filter(Boolean)
+  .concat('http://localhost:5173');
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // allow non-browser tools (no origin) and listed origins
+    if (!origin || allowedOrigins.includes(clean(origin))) return callback(null, true);
+    return callback(null, false);
+  },
+}));
 
 app.use(async (req, res, next) => {
     try { await connectDB(); next(); } catch (err) { next(err); }
